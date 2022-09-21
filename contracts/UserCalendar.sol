@@ -8,39 +8,37 @@ interface ICommunityTracker {
 contract UserCalendar {
   uint256 public utc;
   uint256 public rate;
-  uint256 public appointmentId = 1; // index for appointmentsArr, MUST START AT 1
+  uint256 public appointmentId = 1; // index for appointmentsArray, MUST START AT 1
   address public owner;
+  string public name;
+  bool initialization;
 
   struct Appointment {
     uint256 id;
     string title;
     address attendee;
-    string date;
+    uint256 date;
     uint256 day;
     uint256 startTime;
-    uint256 endTime;
+    uint256 duration;
     uint256 payRate;
-    bool isActive;
   }
 
-  /**
-   * 0 - 6 days
-   * mapping
-   * 0000 - 2345 => true
-   * 1315 -
-   */
+  //(0 - 6 days) => (0000 - 2345) => true
   mapping (uint256 => mapping(uint256 => bool)) public availability;
 
-  /**
-   * @dev "20220918" => (1330 => true) = appointment on September 18th, 1:30PM 
-   */
-  mapping (string => mapping(uint256 => bool)) public appointments;
+  // 20220918 => (0000 - 2345) => true
+  mapping (uint256 => mapping(uint256 => bool)) public appointments;
 
-  Appointment[] public appointmentsArr;
+  uint256[2][7] public availabilityArray = [[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]];
+  Appointment[] public appointmentsArray;
 
-  constructor(address communityTracker) {
+  function init(string memory userName, address communityTracker) external {
+    require(initialization == false);
     owner = msg.sender;
+    name = userName;
     ICommunityTracker(communityTracker).addUserCalendar(msg.sender, address(this));
+    initialization = true;
   }
 
   modifier onlyOwner() {
@@ -84,6 +82,12 @@ contract UserCalendar {
     for (i; i < _endTime; i += 15) {
       availability[_day][i] = true;
     }
+
+    availabilityArray[_day] = [_startTime, _endTime];
+  }
+  
+  function readAvailability() external view returns (uint256[2][7] memory) {
+    return availabilityArray;
   }
 
   function deleteAvailability(uint256 _day, uint256 _startTime, uint256 _endTime) external onlyOwner {
@@ -103,23 +107,20 @@ contract UserCalendar {
    */
   function createAppointment(
     string memory _title,
-    string memory _date,
+    uint256 _date,
     uint256 _day,
     address _attendee,
     uint256 _startTime,
-    uint256 _endTime
+    uint256 _duration
   ) external {
-
-    // check if time is available
 
     require(_day >= 0 && _day <= 6, "day is invalid");
 
-    uint256 i = _startTime;
-    for (i; i < _endTime; i += 15) {
-      require(availability[_day][i] == true, "this appointment date and time is not available");
-      require(appointments[_date][i] != true, "this appointment date and time is not available because of a preexisting appointment");
+    // manage scheduling conflict
+    for (uint256 i=0; i < _duration; i++) {
+      require(availability[_day][_startTime + (i*25)] == true, "appointment date/time is outside of availability");
+      require(appointments[_date][_startTime + (i*25)] != true, "appointment date/time is not available");
     }
-    // todo: check if no appointment already exists
 
     Appointment memory appointment;
     appointment.id = appointmentId;
@@ -128,36 +129,56 @@ contract UserCalendar {
     appointment.day = _day;
     appointment.attendee = _attendee;
     appointment.startTime = _startTime;
-    // consider uisng duration of 15 min blocks
-    appointment.endTime = _endTime;
+    appointment.duration = _duration;
     appointment.payRate = rate;
 
-    // wip
     appointments[_date][_startTime] = true;
 
-    i = _startTime;
-    for (i; i < _endTime; i += 15) {
-      appointments[_date][i] = true;
+    for (uint256 j=0; j < _duration; j++) {
+      appointments[_date][j] = true;
     }
 
-    appointmentsArr.push(appointment);
+    appointmentsArray.push(appointment);
     appointmentId = appointmentId+1;
   }
 
   function readAppointments() external view returns (Appointment[] memory) {
-    // todo: get start and end dates
-    return appointmentsArr;
+    return appointmentsArray;
+  }
+
+  function sortAppointments() external {
+    bool swapped = true;
+    while (swapped) {
+      swapped = false;
+      for (uint i=0; i < appointmentsArray.length-1; i++) {
+        if (appointmentsArray[i].date > appointmentsArray[i+1].date) {
+          Appointment memory temp = appointmentsArray[i];
+          appointmentsArray[i] = appointmentsArray[i+1];
+          appointmentsArray[i+1] = temp;
+          swapped = true;
+        }
+        if (appointmentsArray[i].date == appointmentsArray[i+1].date) {
+          if (appointmentsArray[i].startTime > appointmentsArray[i+1].startTime) {
+            Appointment memory temp = appointmentsArray[i];
+            appointmentsArray[i] = appointmentsArray[i+1];
+            appointmentsArray[i+1] = temp;
+            swapped = true;
+          }
+        }
+      }
+    }
   }
 
   function deleteAppointment(uint256 _appointmentId) external onlyOwner {
-    string memory date = appointmentsArr[_appointmentId].date;
-    uint256 i = appointmentsArr[_appointmentId].startTime;
-    uint256 end = appointmentsArr[_appointmentId].endTime;
+    uint256 positionId = _appointmentId - 1;
+    uint256 date = appointmentsArray[positionId].date;
+    uint256 start = appointmentsArray[positionId].startTime;
+    uint256 duration = appointmentsArray[positionId].duration;
 
-    for (i; i < end; i += 15) {
-      appointments[date][i] = false;
+    for (uint256 i=0; i < duration; i++) {
+      appointments[date][start + (i*25)] = false;
     }
     // does not remove appt from array, only sets all data to 0
-    delete appointmentsArr[_appointmentId];
+    delete appointmentsArray[positionId];
   }
 }
