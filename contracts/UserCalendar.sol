@@ -80,9 +80,7 @@ contract UserCalendar {
     require(_startTime >= 0, "start time is invalid");
     require(_endTime <= 2345, "start time is invalid");
 
-    // 0800 -> 1845
-
-    uint i = _startTime;
+    uint256 i = _startTime;
     for (i; i < _endTime; i += 15) {
       availability[_day][i] = true;
     }
@@ -91,14 +89,14 @@ contract UserCalendar {
   function deleteAvailability(uint256 _day, uint256 _startTime, uint256 _endTime) external onlyOwner {
     require(_day >= 0 && _day <= 6, "day is invalid");
 
-    uint i = _startTime;
+    uint256 i = _startTime;
     for (i; i < _endTime; i += 15) {
       availability[_day][i] = false;
     }
   }
 
-  // todo: should appointments need to be proposed by anyone and approved by only owner?
   /**
+   * @param _title string
    * @param _date "20220918" -> September 18th, 2022
    * @param _day 4 -> day of the week
    * @param _startTime 1715 -> 5:15pm
