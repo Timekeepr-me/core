@@ -100,6 +100,7 @@ contract UserCalendar {
   }
 
   /**
+   * @param _title string
    * @param _date "20220918" -> September 18th, 2022
    * @param _day 4 -> day of the week
    * @param _startTime 1715 -> 5:15pm
