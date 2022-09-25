@@ -1,32 +1,31 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.9;
 
-import { ISuperfluid, ISuperToken, ISuperApp } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
+import { ISuperfluid, ISuperToken } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
 import { ISuperfluidToken } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluidToken.sol";
 import {IConstantFlowAgreementV1} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/agreements/IConstantFlowAgreementV1.sol";
 import {CFAv1Library} from "@superfluid-finance/ethereum-contracts/contracts/apps/CFAv1Library.sol";
 
-contract PaymentRouter {
+contract MoneyRouter {
   address public owner;
+  bool initialization;
 
   using CFAv1Library for CFAv1Library.InitData;
   CFAv1Library.InitData public cfaV1; //initialize cfaV1 variable
   
   mapping (address => bool) public accountList;
 
-  constructor(ISuperfluid host, address _owner) {
-    assert(address(host) != address(0));
+  function init(address host, address _owner) external {
+    require(initialization == false);
+    // assert(address(host) != address(0));
     owner = _owner;
-    //initialize InitData struct, and set equal to cfaV1        
-    cfaV1 = CFAv1Library.InitData(
-    host,
-    //here, we are deriving the address of the CFA using the host contract
-    IConstantFlowAgreementV1(
-      address(host.getAgreementClass(
+    cfaV1 = CFAv1Library.InitData(ISuperfluid(host), IConstantFlowAgreementV1(
+      address(ISuperfluid(host).getAgreementClass(
           keccak256("org.superfluid-finance.agreements.ConstantFlowAgreement.v1")
         ))
       )
     );
+    initialization = true;
   }
 
   function whitelistAccount(address _account) external {

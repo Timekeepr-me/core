@@ -1,5 +1,6 @@
 const { ethers } = require("hardhat");
 const { expect } = require("chai");
+const { Framework } = require("@superfluid-finance/sdk-core");
 
 describe("CalendarFactory Test", function () {
   let deployer, users, clones;
@@ -11,9 +12,20 @@ describe("CalendarFactory Test", function () {
     users = [u1.address, u2.address, u3.address, u4.address];
     userNames = ["Samantha", "Jonny", "Alex", "Karen"];
 
+    const sf = await Framework.create({
+      chainId: (await ethers.provider.getNetwork()).chainId,
+      provider: ethers.provider,
+      customSubgraphQueriesEndpoint: "",
+      dataMode: "WEB3_ONLY"
+    });
+
     const CommunityTracker = await ethers.getContractFactory("CommunityTracker");
     this.tracker = await CommunityTracker.deploy(deployer.address);
     await this.tracker.deployed();
+
+    const MoneyRouter = await ethers.getContractFactory("MoneyRouter");
+    this.router = await MoneyRouter.deploy();
+    await this.router.deployed();
 
     const UserCalendar = await ethers.getContractFactory("UserCalendar");
     this.userCal = await UserCalendar.deploy();
@@ -23,15 +35,18 @@ describe("CalendarFactory Test", function () {
     this.factory = await CalendarFactory.deploy(deployer.address);
     await this.factory.deployed();
 
-    this.factory.setBases(this.userCal.address, this.tracker.address);
+    this.factory.setBases(this.userCal.address, this.router.address, this.tracker.address);
+    console.log('bases set');
+
+    await this.factory.connect(signers[i]).createUserCal(userNames[i], sf.settings.config.hostAddress);
 
     // initialize userCalendars
-    for (let i=0; i<users.length; i++) {
-      await this.factory.connect(signers[i]).createUserCal(userNames[i]);
-    }
-    clones = await this.factory.getAllUserCalendarClones();
+    // for (let i=0; i<users.length; i++) {
+    //   await this.factory.connect(signers[i]).createUserCal(userNames[i]);
+    // }
+    // clones = await this.factory.getAllUserCalendarClones();
 
-    this.testContract = await ethers.getContractAt("UserCalendar", clones[0]);
+    // this.testContract = await ethers.getContractAt("UserCalendar", clones[0]);
 
     // for (let i=0; i<clones.length; i++) {
     //   userCals.push(await ethers.getContractAt("UserCalendar", clones[i]));

@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
+import { ISuperfluid, ISuperToken } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
+import { ISuperfluidToken } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluidToken.sol";
+
 interface ICommunityTracker {
   function addUserCalendar(address, address) external;
+}
+
+interface IMoneyRouter {
+  function sendLumpSumToContract(ISuperToken token, uint amount) external;
+  function withdrawFunds(ISuperToken token, uint amount) external;
+  function createFlowFromContract(ISuperfluidToken token, address receiver, int96 flowRate) external;
+  function deleteFlowFromContract(ISuperfluidToken token, address receiver) external;
 }
 
 contract UserCalendar {
@@ -12,6 +22,7 @@ contract UserCalendar {
   address public owner;
   string public name;
   bool initialization;
+  address public moneyRouter;
 
   struct Appointment {
     uint256 id;
@@ -33,10 +44,11 @@ contract UserCalendar {
   Appointment[] public appointmentsArray;
   uint256[7][96] public availabilityArray;
 
-  function init(string memory userName, address communityTracker) external {
+  function init(string memory userName, address _moneyRouter, address communityTracker) external {
     require(initialization == false);
     owner = msg.sender;
     name = userName;
+    moneyRouter = _moneyRouter;
     ICommunityTracker(communityTracker).addUserCalendar(msg.sender, address(this));
     initialization = true;
   }
@@ -180,5 +192,26 @@ contract UserCalendar {
     }
     // does not remove appt from array, only sets all data to 0
     delete appointmentsArray[positionId];
+  }
+
+  // SUPERFLUID FUNCTIONS:
+  // send money to MoneyRouter
+  function sendLumpSumToMoneyRouter(ISuperToken token, uint amount) external {
+    IMoneyRouter(moneyRouter).sendLumpSumToContract(token, amount);
+  }
+
+  // withdraw money from MoneyRouter
+  function withdrawFromMoneyRouter(ISuperToken token, uint amount) external {
+    IMoneyRouter(moneyRouter).withdrawFunds(token, amount);
+  }
+  
+  // create payment stream to receiver from MoneyRouter
+  function createFlowFromMoneyRouter(ISuperfluidToken token, address receiver, int96 flowRate) external {
+    IMoneyRouter(moneyRouter).createFlowFromContract(token, receiver, flowRate);
+  }
+
+  // delete payment stream to receiver from MoneyRouter
+  function deleteFlowFromMoneyRouter(ISuperfluidToken token, address receiver) external {
+    IMoneyRouter(moneyRouter).deleteFlowFromContract(token, receiver);
   }
 }
