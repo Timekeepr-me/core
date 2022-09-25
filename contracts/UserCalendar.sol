@@ -23,6 +23,7 @@ contract UserCalendar {
   string public name;
   bool initialization;
   address public moneyRouter;
+  string public availabilityEncodedStr = "";
 
   struct Appointment {
     uint256 id;
@@ -46,7 +47,7 @@ contract UserCalendar {
 
   function init(string memory userName, address _moneyRouter, address communityTracker) external {
     require(initialization == false);
-    owner = msg.sender;
+    owner = _owner;
     name = userName;
     moneyRouter = _moneyRouter;
     ICommunityTracker(communityTracker).addUserCalendar(msg.sender, address(this));
@@ -81,19 +82,34 @@ contract UserCalendar {
 
   /**
    * @dev set an availability block per day
-   * @param _day 0-6 day of the week
-   * @param _startTime 0000 - 2345 hour and minute block by 15 minute intervals
-   * @param _endTime end time same format as start time
+   * @param _availabilityEncoded string day, start time and end time encoded in one string
+   * example: '101451500116451800' = 1 = Tuesday 0145 = 1:45am 1500 = 3pm
    */
-  function setAvailability(uint256 _day, uint256 _startTime, uint256 _endTime) external onlyOwner {
-    require(_day >= 0 && _day <= 6, "day is invalid");
-    require(_startTime >= 0, "start time is invalid");
-    require(_endTime <= 2345, "start time is invalid");
+  function setAvailability(string memory _availabilityEncoded) external onlyOwner {
+    availabilityEncodedStr = _availabilityEncoded;
+    clearAvailability();
+    uint256 i = 0;
+    uint256 strLength = utfStringLength(_availabilityEncoded);
+    for (i; i < strLength; i += 9) {
+      uint256 day = stringToUint(substring(_availabilityEncoded, i, i));
+      uint256 startTime = stringToUint(substring(_availabilityEncoded, 1, 5));
+      uint256 endTime = stringToUint(substring(_availabilityEncoded, 5, 9));
 
-    uint256 i = _startTime;
-    for (i; i < _endTime; i += 15) {
-      availability[_day][i] = true;
-      availabilityArray[_day][i / 15] = 1;
+      for (startTime; startTime < endTime; i+=15) {
+        availability[day][i] = true;
+        availabilityArray[day][i / 15] = 1;
+      }
+    }
+  }
+
+  function clearAvailability() internal {
+    uint256 day = 0;
+    for (day; day < 7; day++) {
+      uint256 hour = 0;
+      for (hour; hour < 2400; hour += 15) {
+        availability[day][hour] = true;
+        availabilityArray[day][hour / 15] = 1;
+      }
     }
   }
   
@@ -115,7 +131,7 @@ contract UserCalendar {
    * @param _date "20220918" -> September 18th, 2022
    * @param _day 4 -> day of the week
    * @param _startTime 1715 -> 5:15pm
-   * @param _duration how many 15 minute
+   * @param _duration number of how many 15 minute blocks
    */
   function createAppointment(
     string memory _title,
@@ -130,8 +146,8 @@ contract UserCalendar {
 
     // manage scheduling conflict
     for (uint256 i=0; i < _duration; i++) {
-      require(availabilityArray[_day][_startTime + (i*25)] == 1, "appointment date/time is outside of availability");
-      require(appointments[_date][_startTime + (i*25)] != true, "appointment date/time is not available");
+      require(availabilityArray[_day][_startTime + (i*15)] == 1, "appointment date/time is outside of availability");
+      require(appointments[_date][_startTime + (i*15)] != true, "appointment date/time is not available");
     }
 
     Appointment memory appointment;
@@ -213,5 +229,48 @@ contract UserCalendar {
   // delete payment stream to receiver from MoneyRouter
   function deleteFlowFromMoneyRouter(ISuperfluidToken token, address receiver) external {
     IMoneyRouter(moneyRouter).deleteFlowFromContract(token, receiver);
+  }
+
+  function substring(string memory str, uint startIndex, uint endIndex) public pure returns (string memory ) {
+    bytes memory strBytes = bytes(str);
+    bytes memory result = new bytes(endIndex-startIndex);
+    for(uint i = startIndex; i < endIndex; i++) {
+        result[i-startIndex] = strBytes[i];
+    }
+    return string(result);
+  }
+
+  function utfStringLength(string memory str) pure internal returns (uint length) {
+    uint i=0;
+    bytes memory string_rep = bytes(str);
+
+    while (i<string_rep.length)
+    {
+        if (string_rep[i]>>7==0)
+            i+=1;
+        else if (string_rep[i]>>5==bytes1(uint8(0x6)))
+            i+=2;
+        else if (string_rep[i]>>4==bytes1(uint8(0xE)))
+            i+=3;
+        else if (string_rep[i]>>3==bytes1(uint8(0x1E)))
+            i+=4;
+        else
+            //For safety
+            i+=1;
+
+        length++;
+    }
+  }
+
+  function stringToUint(string memory s) public pure returns (uint) {
+        bytes memory b = bytes(s);
+        uint result = 0;
+        for (uint256 i = 0; i < b.length; i++) {
+            uint256 c = uint256(uint8(b[i]));
+            if (c >= 48 && c <= 57) {
+                result = result * 10 + (c - 48);
+            }
+        }
+        return result;
   }
 }

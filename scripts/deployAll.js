@@ -7,6 +7,7 @@ require('dotenv').config();
  */
 
 const deployerAddress = process.env.PUB_KEY;
+const environment = process.env.ENVIRONMENT;
 
 async function main() {
   const CommunityTracker = await ethers.getContractFactory("CommunityTracker");
@@ -31,6 +32,7 @@ async function main() {
   console.log(await this.factory.getBases());
 
   console.log(`
+<<<<<<< HEAD
   Deployer Address: ${deployerAddress}\n
   CommunityTracker: ${this.tracker.address}\n
   [base] MoneyRouter: ${this.router.address}\n
@@ -53,6 +55,13 @@ async function main() {
   console.log(await this.factory.getAllUserCalendarClones());
   console.log(await this.factory.getMoneyRouterClones());
 }
+=======
+    Deployer Address: ${deployerAddress}\n
+    CommunityTracker: ${this.tracker.address}\n
+    [base] UserCalendar: ${this.userCal.address}\n
+    CalendarFactory: ${this.factory.address}\n`);
+  }
+>>>>>>> 741e75b295a05e4fcc6fa9ec59e903f622ead80a
 
 main().catch((error) => {
   console.error(error);
