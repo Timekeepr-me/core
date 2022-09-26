@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
+import "hardhat/console.sol";
 
 interface ICommunityTracker {
   function addUserCalendar(address, address) external;
@@ -41,7 +42,6 @@ contract UserCalendar {
   mapping (uint256 => mapping(uint256 => bool)) public appointments;
 
   Appointment[] public appointmentsArray;
-  uint256[7][96] public availabilityArray;
 
   function init(string memory userName, address communityTracker, address _owner) external {
     require(initialization == false);
@@ -80,21 +80,47 @@ contract UserCalendar {
   /**
    * @dev set an availability block per day
    * @param _availabilityEncoded string day, start time and end time encoded in one string
-   * example: '101451500116451800' = 1 = Tuesday 0145 = 1:45am 1500 = 3pm
+   * day of the week, start time, duration
+   * example: '1017503' -> 1 = Tuesday 0175 = 1:45am 03 = 3 * 15 = 45 minutes duration
    */
   function setAvailability(string memory _availabilityEncoded) external onlyOwner {
     availabilityEncodedStr = _availabilityEncoded;
+    console.log(
+        "setAvailability _availabilityEncoded %s",
+        _availabilityEncoded
+    ); 
     clearAvailability();
     uint256 i = 0;
     uint256 strLength = utfStringLength(_availabilityEncoded);
-    for (i; i < strLength; i += 9) {
-      uint256 day = stringToUint(substring(_availabilityEncoded, i, i));
-      uint256 startTime = stringToUint(substring(_availabilityEncoded, 1, 5));
-      uint256 endTime = stringToUint(substring(_availabilityEncoded, 5, 9));
-
-      for (startTime; startTime < endTime; i+=15) {
-        availability[day][i] = true;
-        availabilityArray[day][i / 15] = 1;
+    console.log(
+      "strLength %s",
+      strLength
+    );
+    for (i; i < strLength; i += 7) {
+      string memory daySubStr = substring(_availabilityEncoded, i, i + 1);
+      console.log(
+          "daySubStr %s",
+          daySubStr
+      );
+      uint256 day = stringToUint(daySubStr);
+      console.log(
+          "day %s",
+          day
+      );
+      uint256 startTime = stringToUint(substring(_availabilityEncoded, i + 1, i + 5));
+      console.log(
+          "startTime %s",
+          startTime
+      );
+      uint256 duration = stringToUint(substring(_availabilityEncoded, i + 5, i + 7));
+      console.log(
+          "duration %s",
+          duration
+      );
+      uint256 endTime = startTime + (duration * 25);
+      uint256 _time = startTime;
+      for (_time; _time < endTime; _time += 25) {
+        availability[day][_time] = true;
       }
     }
   }
@@ -103,31 +129,26 @@ contract UserCalendar {
     uint256 day = 0;
     for (day; day < 7; day++) {
       uint256 hour = 0;
-      for (hour; hour < 2400; hour += 15) {
-        availability[day][hour] = true;
-        availabilityArray[day][hour / 15] = 1;
+      for (hour; hour < 2400; hour += 25) {
+        availability[day][hour] = false;
       }
     }
   }
-  
-  function readAvailability() external view returns (uint256[7][96] memory) {
-    return availabilityArray;
-  }
 
-  function deleteAvailability(uint256 _day, uint256 _startTime, uint256 _endTime) external onlyOwner {
+  function deleteAvailability(uint256 _day, uint256 _startTime, uint256 _duration) external onlyOwner {
     require(_day >= 0 && _day <= 6, "day is invalid");
 
     uint256 i = _startTime;
-    for (i; i < _endTime; i += 15) {
+    uint256 endTime = _startTime + (_duration * 25);
+    for (i; i < endTime; i + 25) {
       availability[_day][i] = false;
-      availabilityArray[_day][i / 15] = 0;
     }
   }
 
   /**
    * @param _date "20220918" -> September 18th, 2022
    * @param _day 4 -> day of the week
-   * @param _startTime 1715 -> 5:15pm
+   * @param _startTime 1725 -> 5:15pm
    * @param _duration number of how many 15 minute blocks
    */
   function createAppointment(
@@ -143,8 +164,7 @@ contract UserCalendar {
 
     // manage scheduling conflict
     for (uint256 i=0; i < _duration; i++) {
-      require(availabilityArray[_day][_startTime + (i*15)] == 1, "appointment date/time is outside of availability");
-      require(appointments[_date][_startTime + (i*15)] != true, "appointment date/time is not available");
+      require(appointments[_date][_startTime + (i * 25)] != true, "appointment date/time is not available");
     }
 
     Appointment memory appointment;
@@ -248,6 +268,13 @@ contract UserCalendar {
   function substring(string memory str, uint startIndex, uint endIndex) public pure returns (string memory ) {
     bytes memory strBytes = bytes(str);
     bytes memory result = new bytes(endIndex-startIndex);
+    console.log(
+      "substring %s start %s, end %s",
+      str,
+      startIndex,
+      endIndex
+    );
+
     for(uint i = startIndex; i < endIndex; i++) {
         result[i-startIndex] = strBytes[i];
     }
